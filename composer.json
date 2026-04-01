@@ -1,0 +1,44 @@
+{
+    "name": "thorsten/index-now-listener",
+    "description": "Event-driven IndexNow integration for Symfony. Automatically notify search engines when URLs change.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "indexnow",
+        "seo",
+        "symfony",
+        "event-driven",
+        "search-engine",
+        "bing",
+        "yandex"
+    ],
+    "homepage": "https://github.com/thorsten-baumann-plattling/index-now-listener",
+    "authors": [
+        {
+            "name": "Thorsten Baumann",
+            "email": "info@baumann-it-dienstleistungen.de"
+        }
+    ],
+    "require": {
+        "php": ">=8.4",
+        "symfony/dotenv": "^8.0",
+        "symfony/event-dispatcher": "8.0.*",
+        "symfony/http-client": "8.0.*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^13.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Thorsten\\IndexNowListener\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Thorsten\\IndexNowListener\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
