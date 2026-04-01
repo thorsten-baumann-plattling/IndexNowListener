@@ -2,11 +2,11 @@
 
 namespace Thorsten\IndexNowListener\Event;
 
-use Thorsten\IndexNowListener\Event\IndexNowEvent;
-use Thorsten\IndexNowListener\Service\IndexNowNotifier;
-use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
+use Thorsten\IndexNowListener\Service\IndexNowNotifier;
+use Throwable;
 
 #[AsEventListener(event: IndexNowEvent::class)]
 readonly class IndexNowListener
@@ -24,7 +24,7 @@ readonly class IndexNowListener
     {
         try {
             $this->notifier->notify($event->getUrls());
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error('Failed to notify IndexNow: ' . $e->getMessage(), [
                 'exception' => $e,
                 'urls' => $event->getUrls(),

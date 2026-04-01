@@ -2,6 +2,7 @@
 
 namespace Thorsten\IndexNowListener\Event;
 
+use InvalidArgumentException;
 use Symfony\Contracts\EventDispatcher\Event;
 
 class IndexNowEvent extends Event
@@ -19,14 +20,14 @@ class IndexNowEvent extends Event
 
         foreach ($urls as $url) {
             if (!filter_var($url, FILTER_VALIDATE_URL)) {
-                throw new \InvalidArgumentException(sprintf('The URL "%s" is not valid.', $url));
+                throw new InvalidArgumentException(sprintf('The URL "%s" is not valid.', $url));
             }
 
             $currentHost = parse_url($url, PHP_URL_HOST);
             if ($host === null) {
                 $host = $currentHost;
             } elseif ($host !== $currentHost) {
-                throw new \InvalidArgumentException(sprintf('All URLs must belong to the same host. Expecting "%s", but got "%s" from URL "%s".', $host, $currentHost, $url));
+                throw new InvalidArgumentException(sprintf('All URLs must belong to the same host. Expecting "%s", but got "%s" from URL "%s".', $host, $currentHost, $url));
             }
         }
 

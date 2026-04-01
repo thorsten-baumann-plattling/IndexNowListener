@@ -2,29 +2,18 @@
 
 namespace Thorsten\IndexNowListener\Tests\Service;
 
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
-use PHPUnit\Framework\MockObject\MockObject;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Symfony\Contracts\HttpClient\ResponseInterface;
 use Thorsten\IndexNowListener\Service\IndexNowNotifier;
 
 class IndexNowNotifierTest extends TestCase
 {
-    private MockObject&HttpClientInterface $httpClient;
-    private IndexNowNotifier $notifier;
     private string $key = 'test_key';
     private string $keyLocation = 'https://example.com/test_key.txt';
-
-    protected function setUp(): void
-    {
-        $this->httpClient = $this->createMock(HttpClientInterface::class);
-        $this->notifier = new IndexNowNotifier(
-            $this->httpClient,
-            $this->key,
-            $this->keyLocation
-        );
-    }
 
     /**
      * @throws TransportExceptionInterface
@@ -32,6 +21,13 @@ class IndexNowNotifierTest extends TestCase
      */
     public function testNotifySendsCorrectRequest(): void
     {
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $notifier = new IndexNowNotifier(
+            $httpClient,
+            $this->key,
+            $this->keyLocation
+        );
+
         $url = 'https://example.com/page1';
         $expectedPayload = [
             'json' => [
@@ -42,13 +38,14 @@ class IndexNowNotifierTest extends TestCase
             ],
         ];
 
-        $response = $this->createMock(\Symfony\Contracts\HttpClient\ResponseInterface::class);
-        $this->httpClient->expects($this->once())
+        $response = $this->createStub(ResponseInterface::class);
+
+        $httpClient->expects($this->once())
             ->method('request')
             ->with('POST', 'https://www.bing.com/indexnow', $expectedPayload)
             ->willReturn($response);
 
-        $this->notifier->notify([$url]);
+        $notifier->notify([$url]);
     }
 
     /**
@@ -57,18 +54,20 @@ class IndexNowNotifierTest extends TestCase
      */
     public function testNotifyWithCustomSearchEngine(): void
     {
+        $httpClient = $this->createMock(HttpClientInterface::class);
         $customSearchEngine = 'https://api.indexnow.org/indexnow';
+
         $notifier = new IndexNowNotifier(
-            $this->httpClient,
+            $httpClient,
             $this->key,
             $this->keyLocation,
             $customSearchEngine
         );
 
         $url = 'https://example.com/page1';
+        $response = $this->createStub(ResponseInterface::class);
 
-        $response = $this->createMock(\Symfony\Contracts\HttpClient\ResponseInterface::class);
-        $this->httpClient->expects($this->once())
+        $httpClient->expects($this->once())
             ->method('request')
             ->with('POST', $customSearchEngine, $this->anything())
             ->willReturn($response);
@@ -82,47 +81,69 @@ class IndexNowNotifierTest extends TestCase
      */
     public function testNotifyThrowsExceptionOnInvalidUrl(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $httpClient = $this->createStub(HttpClientInterface::class);
+        $notifier = new IndexNowNotifier(
+            $httpClient,
+            $this->key,
+            $this->keyLocation
+        );
+
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The URL "invalid-url" does not contain a valid host.');
 
-        $this->notifier->notify('invalid-url');
+        $notifier->notify('invalid-url');
     }
 
+    /**
+     * @throws TransportExceptionInterface
+     * @throws ExceptionInterface
+     */
     public function testLoadFromEnvVars(): void
     {
         $_ENV['INDEXNOW_KEY'] = 'env_key';
         $_ENV['INDEXNOW_KEY_LOCATION'] = 'https://example.com/env_key.txt';
 
-        $notifier = new IndexNowNotifier($this->httpClient);
+        try {
+            $httpClient = $this->createMock(HttpClientInterface::class);
+            $notifier = new IndexNowNotifier($httpClient);
 
-        $url = 'https://example.com/page1';
-        $expectedPayload = [
-            'json' => [
-                'host' => 'example.com',
-                'key' => 'env_key',
-                'keyLocation' => 'https://example.com/env_key.txt',
-                'urlList' => [$url],
-            ],
-        ];
+            $url = 'https://example.com/page1';
+            $expectedPayload = [
+                'json' => [
+                    'host' => 'example.com',
+                    'key' => 'env_key',
+                    'keyLocation' => 'https://example.com/env_key.txt',
+                    'urlList' => [$url],
+                ],
+            ];
 
-        $response = $this->createMock(\Symfony\Contracts\HttpClient\ResponseInterface::class);
-        $this->httpClient->expects($this->once())
-            ->method('request')
-            ->with('POST', 'https://www.bing.com/indexnow', $expectedPayload)
-            ->willReturn($response);
+            $response = $this->createStub(ResponseInterface::class);
 
-        $notifier->notify([$url]);
+            $httpClient->expects($this->once())
+                ->method('request')
+                ->with('POST', 'https://www.bing.com/indexnow', $expectedPayload)
+                ->willReturn($response);
 
-        unset($_ENV['INDEXNOW_KEY'], $_ENV['INDEXNOW_KEY_LOCATION']);
+            $notifier->notify([$url]);
+        } finally {
+            unset($_ENV['INDEXNOW_KEY'], $_ENV['INDEXNOW_KEY_LOCATION']);
+        }
     }
 
     public function testThrowsExceptionIfKeyMissing(): void
     {
-        unset($_ENV['INDEXNOW_KEY'], $_ENV['INDEXNOW_KEY_LOCATION'], $_SERVER['INDEXNOW_KEY'], $_SERVER['INDEXNOW_KEY_LOCATION']);
+        unset(
+            $_ENV['INDEXNOW_KEY'],
+            $_ENV['INDEXNOW_KEY_LOCATION'],
+            $_SERVER['INDEXNOW_KEY'],
+            $_SERVER['INDEXNOW_KEY_LOCATION']
+        );
 
-        $this->expectException(\InvalidArgumentException::class);
+        $httpClient = $this->createStub(HttpClientInterface::class);
+
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('IndexNow key is required.');
 
-        new IndexNowNotifier($this->httpClient);
+        new IndexNowNotifier($httpClient);
     }
 }

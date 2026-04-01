@@ -2,6 +2,7 @@
 
 namespace Thorsten\IndexNowListener\Tests\Event;
 
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use Thorsten\IndexNowListener\Event\IndexNowEvent;
 
@@ -33,7 +34,7 @@ class IndexNowEventTest extends TestCase
 
     public function testInvalidUrlThrowsException(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The URL "invalid-url" is not valid.');
 
         new IndexNowEvent('invalid-url');
@@ -42,7 +43,7 @@ class IndexNowEventTest extends TestCase
     public function testDifferentHostsThrowException(): void
     {
         $urls = ['https://example.com/page1', 'https://other.com/page1'];
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('All URLs must belong to the same host.');
 
         new IndexNowEvent($urls);
