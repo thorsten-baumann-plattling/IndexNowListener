@@ -8,6 +8,7 @@ use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
+use Thorsten\IndexNowListener\Exception\IndexNowNotificationException;
 use Thorsten\IndexNowListener\Service\IndexNowNotifier;
 
 class IndexNowNotifierTest extends TestCase
@@ -38,12 +39,16 @@ class IndexNowNotifierTest extends TestCase
             ],
         ];
 
-        $response = $this->createStub(ResponseInterface::class);
+        $response = $this->createMock(ResponseInterface::class);
 
         $httpClient->expects($this->once())
             ->method('request')
             ->with('POST', 'https://www.bing.com/indexnow', $expectedPayload)
             ->willReturn($response);
+
+        $response->expects($this->once())
+            ->method('getStatusCode')
+            ->willReturn(202);
 
         $notifier->notify([$url]);
     }
@@ -65,7 +70,7 @@ class IndexNowNotifierTest extends TestCase
         );
 
         $url = 'https://example.com/page1';
-        $response = $this->createStub(ResponseInterface::class);
+        $response = $this->createMock(ResponseInterface::class);
 
         $httpClient->expects($this->once())
             ->method('request')
@@ -78,6 +83,10 @@ class IndexNowNotifierTest extends TestCase
                 ],
             ])
             ->willReturn($response);
+
+        $response->expects($this->once())
+            ->method('getStatusCode')
+            ->willReturn(200);
 
         $notifier->notify([$url]);
     }
@@ -96,9 +105,125 @@ class IndexNowNotifierTest extends TestCase
         );
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The URL "invalid-url" does not contain a valid host.');
+        $this->expectExceptionMessage('The URL "invalid-url" is not valid.');
 
         $notifier->notify('invalid-url');
+    }
+
+    /**
+     * @throws TransportExceptionInterface
+     * @throws ExceptionInterface
+     */
+    public function testNotifyThrowsExceptionOnMixedHosts(): void
+    {
+        $httpClient = $this->createStub(HttpClientInterface::class);
+        $notifier = new IndexNowNotifier(
+            $httpClient,
+            $this->key,
+            $this->keyLocation
+        );
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('All URLs must belong to the same host.');
+
+        $notifier->notify([
+            'https://example.com/page1',
+            'https://other.example/page2',
+        ]);
+    }
+
+    /**
+     * @throws TransportExceptionInterface
+     * @throws ExceptionInterface
+     */
+    public function testNotifyThrowsExceptionWhenAnyUrlIsInvalid(): void
+    {
+        $httpClient = $this->createStub(HttpClientInterface::class);
+        $notifier = new IndexNowNotifier(
+            $httpClient,
+            $this->key,
+            $this->keyLocation
+        );
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The URL "not-a-url" is not valid.');
+
+        $notifier->notify([
+            'https://example.com/page1',
+            'not-a-url',
+        ]);
+    }
+
+    /**
+     * @throws TransportExceptionInterface
+     * @throws ExceptionInterface
+     */
+    public function testNotifyThrowsDomainExceptionOnNonSuccessResponse(): void
+    {
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $notifier = new IndexNowNotifier(
+            $httpClient,
+            $this->key,
+            $this->keyLocation,
+            IndexNowNotifier::BING_ENDPOINT,
+            0,
+            0
+        );
+
+        $response = $this->createMock(ResponseInterface::class);
+        $response->expects($this->once())
+            ->method('getStatusCode')
+            ->willReturn(400);
+        $response->expects($this->once())
+            ->method('getContent')
+            ->with(false)
+            ->willReturn('Bad request');
+
+        $httpClient->expects($this->once())
+            ->method('request')
+            ->willReturn($response);
+
+        $this->expectException(IndexNowNotificationException::class);
+        $this->expectExceptionMessage('IndexNow request failed with HTTP 400. Response: Bad request');
+
+        $notifier->notify('https://example.com/page1');
+    }
+
+    /**
+     * @throws TransportExceptionInterface
+     * @throws ExceptionInterface
+     */
+    public function testNotifyRetriesTransientHttpFailures(): void
+    {
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $notifier = new IndexNowNotifier(
+            $httpClient,
+            $this->key,
+            $this->keyLocation,
+            IndexNowNotifier::BING_ENDPOINT,
+            1,
+            0
+        );
+
+        $firstResponse = $this->createMock(ResponseInterface::class);
+        $firstResponse->expects($this->once())
+            ->method('getStatusCode')
+            ->willReturn(503);
+        $firstResponse->expects($this->once())
+            ->method('getContent')
+            ->with(false)
+            ->willReturn('Try again later');
+
+        $secondResponse = $this->createMock(ResponseInterface::class);
+        $secondResponse->expects($this->once())
+            ->method('getStatusCode')
+            ->willReturn(200);
+
+        $httpClient->expects($this->exactly(2))
+            ->method('request')
+            ->willReturnOnConsecutiveCalls($firstResponse, $secondResponse);
+
+        $notifier->notify('https://example.com/page1');
     }
 
     /**
@@ -137,5 +262,15 @@ class IndexNowNotifierTest extends TestCase
         $this->expectExceptionMessage('IndexNow key location is required.');
 
         new IndexNowNotifier($httpClient, $this->key, '');
+    }
+
+    public function testThrowsExceptionIfKeyLocationIsNotAbsoluteUrl(): void
+    {
+        $httpClient = $this->createStub(HttpClientInterface::class);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The key location "/relative/path.txt" must be a valid absolute URL.');
+
+        new IndexNowNotifier($httpClient, $this->key, '/relative/path.txt');
     }
 }

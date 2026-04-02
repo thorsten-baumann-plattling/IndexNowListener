@@ -34,10 +34,10 @@ Instead of triggering IndexNow manually, you dispatch an event — the notificat
 **This package is not:**
 - a full SEO framework
 - a crawler or indexing system
-- a queue or retry system
+- a queue or background job system
 - a complete search engine integration layer
 
-It is intentionally minimal and does not try to cover every possible use case.
+It is intentionally minimal and does not try to cover every possible use case, even though the notifier supports a small built-in retry mechanism for transient HTTP failures.
 
 ---
 
@@ -69,6 +69,8 @@ INDEXNOW_KEY=your_indexnow_key
 INDEXNOW_KEY_LOCATION=https://yourdomain.com/your_indexnow_key.txt
 ```
 
+`INDEXNOW_KEY_LOCATION` must be an absolute URL.
+
 ### Symfony Service Configuration (recommended)
 
 ```yaml
@@ -77,7 +79,9 @@ Thorsten\IndexNowListener\Service\IndexNowNotifier:
   arguments:
     $key: '%env(INDEXNOW_KEY)%'
     $keyLocation: '%env(INDEXNOW_KEY_LOCATION)%'
-    $searchEngine: 'https://www.bing.com/indexnow'
+    $searchEngine: !php/const Thorsten\IndexNowListener\Service\IndexNowNotifier::BING_ENDPOINT
+    $maxRetries: 2
+    $retryDelayMilliseconds: 250
 ```
 
 **Important:**  
@@ -120,6 +124,22 @@ $notifier->notify([
 ]);
 ```
 
+Direct notifier usage applies the same safety checks as the event:
+
+- every URL must be a valid absolute URL
+- every URL must belong to the same host
+- `keyLocation` must be a valid absolute URL
+- non-2xx responses raise an exception
+- transient failures can be retried with the constructor options
+
+For explicit HTTP failures, the notifier throws `Thorsten\IndexNowListener\Exception\IndexNowNotificationException`.
+
+### Known endpoints
+
+- `IndexNowNotifier::BING_ENDPOINT`
+- `IndexNowNotifier::YANDEX_ENDPOINT`
+- `IndexNowNotifier::INDEXNOW_ENDPOINT`
+
 ---
 
 ## How it works
@@ -146,6 +166,20 @@ The notifier is a pure service without hidden configuration logic.
 - PHP 8.2+
 - Symfony HttpClient
 - Symfony EventDispatcher (optional)
+
+Supported package constraints:
+
+- `php: ^8.2`
+- `symfony/event-dispatcher: ^6.4|^7.0|^8.0`
+- `symfony/http-client: ^6.4|^7.0|^8.0`
+
+---
+
+## Quality Checks
+
+- PHPUnit is configured via `phpunit.xml.dist`
+- GitHub Actions runs `composer validate --strict` and the test suite
+- SonarQube can import `phpunit-report.xml` and `coverage.xml` using `sonar-project.properties`
 
 ---
 
