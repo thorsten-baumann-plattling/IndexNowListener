@@ -50,22 +50,26 @@ Useful for applications where content changes frequently:
 - SEO-driven projects
 - Headless backends
 
+---
+
 ## Installation
 
 ```bash
 composer require thorsten/index-now-listener
 ```
 
+---
+
 ## Configuration
 
-### Environment Variables
+### Environment Variables (Symfony)
 
 ```env
 INDEXNOW_KEY=your_indexnow_key
 INDEXNOW_KEY_LOCATION=https://yourdomain.com/your_indexnow_key.txt
 ```
 
-### Symfony Service Configuration (optional)
+### Symfony Service Configuration (recommended)
 
 ```yaml
 # config/services.yaml
@@ -76,9 +80,15 @@ Thorsten\IndexNowListener\Service\IndexNowNotifier:
     $searchEngine: 'https://www.bing.com/indexnow'
 ```
 
+**Important:**  
+The `IndexNowNotifier` does not read environment variables directly.  
+All configuration must be provided via dependency injection.
+
+---
+
 ## Usage
 
-### Notify a single URL
+### Using the Event (recommended)
 
 ```php
 use Thorsten\IndexNowListener\Event\IndexNowEvent;
@@ -97,48 +107,67 @@ $dispatcher->dispatch(new IndexNowEvent([
 
 *Note: All URLs must belong to the same host.*
 
-### Real-world Example
+---
+
+## Alternative: Direct usage (without events)
 
 ```php
-public function save(Post $post, EventDispatcherInterface $dispatcher)
-{
-    // ... persist logic
-    $dispatcher->dispatch(new IndexNowEvent(
-        'https://yourdomain.com/blog/' . $post->getSlug()
-    ));
-}
+use Thorsten\IndexNowListener\Service\IndexNowNotifier;
+
+$notifier->notify([
+    'https://yourdomain.com/page1',
+    'https://yourdomain.com/page2',
+]);
 ```
+
+---
 
 ## How it works
 
-- **IndexNowEvent**: Holds and validates URLs.
-- **IndexNowListener**: Listens to the event and triggers the notifier.
-- **IndexNowNotifier**: Sends the HTTP request to the IndexNow API.
+- **IndexNowEvent**: Holds URLs
+- **IndexNowListener**: Reacts to events
+- **IndexNowNotifier**: Sends the HTTP request to the IndexNow API
 
-## Customization
+The notifier is a pure service without hidden configuration logic.
 
-### Logging
-Inject a `LoggerInterface` to track failed requests or invalid URLs.
+---
 
-### Custom Search Engine
-Default: `https://www.bing.com/indexnow`. You can override this if needed.
+## Design Principles
+
+- No global state (`$_ENV`, `$_SERVER`)
+- No hidden configuration
+- Explicit dependencies
+- Fully testable
+
+---
+
+## Requirements
+
+- PHP 8.2+
+- Symfony HttpClient
+- Symfony EventDispatcher (optional)
+
+---
 
 ## When to use (and when not)
 
 **Use it if:**
-- You care about SEO freshness.
-- Your content changes regularly.
-- You want a clean, event-driven solution.
+- You care about SEO freshness
+- Your content changes regularly
+- You want a clean, event-driven solution
 
 **Don’t use it if:**
-- Your content rarely changes.
-- You don’t need fast indexing.
+- Your content rarely changes
+- You don’t need fast indexing
+
+---
 
 ## Author
 
 **Thorsten Baumann**  
-[https://baumann-it-dienstleistungen.de](https://baumann-it-dienstleistungen.de)  
-[info@baumann-it-dienstleistungen.de](mailto:info@baumann-it-dienstleistungen.de)
+https://baumann-it-dienstleistungen.de  
+info@baumann-it-dienstleistungen.de
 
 ---
+
 This package is intentionally simple: no framework magic, no hidden behavior, just a clean way to integrate IndexNow into Symfony.

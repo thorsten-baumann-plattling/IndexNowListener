@@ -69,7 +69,14 @@ class IndexNowNotifierTest extends TestCase
 
         $httpClient->expects($this->once())
             ->method('request')
-            ->with('POST', $customSearchEngine, $this->anything())
+            ->with('POST', $customSearchEngine, [
+                'json' => [
+                    'host' => 'example.com',
+                    'key' => $this->key,
+                    'keyLocation' => $this->keyLocation,
+                    'urlList' => [$url],
+                ],
+            ])
             ->willReturn($response);
 
         $notifier->notify([$url]);
@@ -98,52 +105,37 @@ class IndexNowNotifierTest extends TestCase
      * @throws TransportExceptionInterface
      * @throws ExceptionInterface
      */
-    public function testLoadFromEnvVars(): void
+    public function testNotifyReturnsEarlyOnEmptyUrlList(): void
     {
-        $_ENV['INDEXNOW_KEY'] = 'env_key';
-        $_ENV['INDEXNOW_KEY_LOCATION'] = 'https://example.com/env_key.txt';
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $notifier = new IndexNowNotifier(
+            $httpClient,
+            $this->key,
+            $this->keyLocation
+        );
 
-        try {
-            $httpClient = $this->createMock(HttpClientInterface::class);
-            $notifier = new IndexNowNotifier($httpClient);
+        $httpClient->expects($this->never())->method('request');
 
-            $url = 'https://example.com/page1';
-            $expectedPayload = [
-                'json' => [
-                    'host' => 'example.com',
-                    'key' => 'env_key',
-                    'keyLocation' => 'https://example.com/env_key.txt',
-                    'urlList' => [$url],
-                ],
-            ];
-
-            $response = $this->createStub(ResponseInterface::class);
-
-            $httpClient->expects($this->once())
-                ->method('request')
-                ->with('POST', 'https://www.bing.com/indexnow', $expectedPayload)
-                ->willReturn($response);
-
-            $notifier->notify([$url]);
-        } finally {
-            unset($_ENV['INDEXNOW_KEY'], $_ENV['INDEXNOW_KEY_LOCATION']);
-        }
+        $notifier->notify([]);
     }
 
     public function testThrowsExceptionIfKeyMissing(): void
     {
-        unset(
-            $_ENV['INDEXNOW_KEY'],
-            $_ENV['INDEXNOW_KEY_LOCATION'],
-            $_SERVER['INDEXNOW_KEY'],
-            $_SERVER['INDEXNOW_KEY_LOCATION']
-        );
-
         $httpClient = $this->createStub(HttpClientInterface::class);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('IndexNow key is required.');
 
-        new IndexNowNotifier($httpClient);
+        new IndexNowNotifier($httpClient, '', $this->keyLocation);
+    }
+
+    public function testThrowsExceptionIfKeyLocationMissing(): void
+    {
+        $httpClient = $this->createStub(HttpClientInterface::class);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('IndexNow key location is required.');
+
+        new IndexNowNotifier($httpClient, $this->key, '');
     }
 }
